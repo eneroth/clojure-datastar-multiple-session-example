@@ -8,3 +8,4 @@ into one and follow its README.
 | [`v0-async-server`](v0-async-server) | Original implementation |
 | [`v1-quiescent-vthreads`](v1-quiescent-vthreads) | Variant using [Quiescent](https://github.com/multiplyco/quiescent) for virtual threads (work in progress: still a copy of v0) |
 | [`v2-reactive-islands`](v2-reactive-islands) | Reactive backend: a [Missionary](https://github.com/leonoel/missionary) DAG of islands, patched individually; shared, refcounted resources; sessions that outlive connections; capability-style actions |
+| [`v3-immediate-islands`](v3-immediate-islands) | v2 without a reactive library: islands as functions (`defisland`) with React-style hooks, re-rendered when their arguments or reads change; same registry, sessions and actions as v2 |
