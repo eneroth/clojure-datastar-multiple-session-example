@@ -86,6 +86,6 @@
     (step)
     (Thread/sleep 200)
     (let [html (island/html (step))]
-      (is (re-find #"Island plain failed to render: </strong>nope" html))
+      (is (re-find #"Island both/plain failed to render: </strong>nope" html))
       (is (re-find #">caught nope<" html)))
     (runtime/dispose! rt)))

@@ -1,6 +1,7 @@
 (ns example.resource-test
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
+    [co.multiply.quiescent :as q]
     [example.action :as action :refer [use-action]]
     [example.hooks :refer [<-]]
     [example.island :as island :refer [defisland use-watch]]
@@ -59,6 +60,39 @@
     (@!publish 1)
     (is (re-find #">1<" (island/html (step))))
     (runtime/dispose! rt)))
+
+
+(defn- failing-pstate
+  "A simulated PState whose proxies publish `:ok`, then fail when the test calls
+  `@!kill`. Returns `[pstate !kill]`."
+  []
+  (let [!kill (atom nil)]
+    [(resource/simulated-pstate (str "$$test-" (random-uuid))
+       (fn [_ publish!]
+         (let [p (promise)]
+           (reset! !kill #(deliver p (ex-info "proxy lost" {})))
+           (publish! :ok)
+           (q/task (throw @p)))))
+     !kill]))
+
+
+(deftest a-failed-proxy-throws-and-the-next-reader-opens-another
+  (let [[pstate !kill] (failing-pstate)
+        opened         (:opened @resource/!totals)
+        a              (harness (reader pstate [:x]))]
+    (is (re-find #">:ok<" (island/html ((:step a)))))
+    (is (= :live (:state (entry pstate [:x]))) "a value published while opening counts")
+    (@!kill)
+    (Thread/sleep 100)
+    (is (re-find #"Island reader failed to render: </strong>proxy lost" (island/html ((:step a)))))
+    (is (nil? (entry pstate [:x])) "the failed proxy is closed")
+    (testing "the next reader opens a new proxy, which the failed one's release leaves alone"
+      (let [b (harness (reader pstate [:x]))]
+        (is (re-find #">:ok<" (island/html ((:step b)))))
+        (is (= (+ opened 2) (:opened @resource/!totals)))
+        (runtime/dispose! (:rt a))
+        (is (= 1 (:subscribers (entry pstate [:x]))))
+        (runtime/dispose! (:rt b))))))
 
 
 (deftest a-new-path-releases-the-old-proxy

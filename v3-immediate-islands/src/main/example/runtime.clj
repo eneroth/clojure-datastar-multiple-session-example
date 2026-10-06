@@ -15,10 +15,11 @@
     [example.island :as island]))
 
 
-;; Instance: what the runtime keeps per mounted island.
-;;   :parent    the id of the island that placed it; nil for the root
+;; Instance: what the runtime keeps per mounted island, keyed by its id.
+;;   :id        its element id; :parent its parent's, nil for the root
 ;;   :render    the render fn, :args its last arguments
-;;   :template  the last template; :calls its child islands; :frame the last frame
+;;   :template  the last template; :frame the last frame
+;;   :children  [[child-id call] ...], the child islands it placed, in document order
 ;;   :holds     hold key -> {:value v, :release f}
 ;;   :reads     [{:ref r, :select f, :seen v}], from the last render
 ;;   :!state    the atom behind `use-state`
@@ -50,11 +51,13 @@
 (defn- add-reader!
   "Registers island `id` as a reader of `ref`, watching it first if nobody did."
   [{:keys [!readers watch-key on-change]} ref id]
-  (when-not (contains? @!readers ref)
-    (add-watch ref watch-key (fn [_ _ old new]
-                               (when-not (identical? old new)
-                                 (on-change ref)))))
-  (vswap! !readers update ref (fnil conj #{}) id))
+  (let [ids (get @!readers ref)]
+    (when-not (contains? ids id)
+      (when (nil? ids)
+        (add-watch ref watch-key (fn [_ _ old new]
+                                   (when-not (identical? old new)
+                                     (on-change ref)))))
+      (vswap! !readers assoc ref (conj (or ids #{}) id)))))
 
 
 (defn- remove-reader!
@@ -76,15 +79,17 @@
   against the previous render of `inst`. Returns the updated instance. A render
   that throws renders an error box instead, keeping only what it held and read
   before throwing."
-  [rt inst call]
-  (let [id        (island/call-id call)
-        !holds    (volatile! {})
+  [rt {:keys [id] :as inst} call]
+  (let [!holds    (volatile! {})
         !reads    (volatile! [])
         old-holds (:holds inst)
         hooks     {:session (:ctx rt)
                    :state   (:!state inst)
                    :hold!   (fn [k acquire]
-                              (let [held (or (get @!holds k) (get old-holds k) (acquire))]
+                              (when (contains? @!holds k)
+                                (throw (IllegalArgumentException.
+                                         (str "it asks for the hold " (pr-str k) " twice in one render."))))
+                              (let [held (or (get old-holds k) (acquire))]
                                 (vswap! !holds assoc k held)
                                 (:value held)))
                    ;; Watch before reading, so no change between the two is missed.
@@ -97,7 +102,8 @@
                            (try
                              (island/compile-island id (apply (island/call-render call) (island/call-args call)))
                              (catch Exception e
-                               (island/compile-island id (island/error-view id (ex-message e))))))
+                               (println "runtime: island" id "failed to render:" (str e))
+                               (island/compile-island id (island/error-view id (or (ex-message e) (str (class e))))))))
         holds     @!holds
         reads     @!reads]
     (run! (fn [[k held]] (when-not (contains? holds k) (release-quietly! id held))) old-holds)
@@ -109,7 +115,7 @@
       :reads    reads
       ;; Equal output keeps the old template, so nothing is patched.
       :template (if (= (:parts template) (:parts (:template inst))) (:template inst) template)
-      :calls    calls
+      :children (mapv (fn [call] [(island/child-id id (island/call-slot call)) call]) calls)
       :renders  (inc (:renders inst 0)))))
 
 
@@ -124,11 +130,7 @@
   [rt id]
   (when-let [inst (get @(:!instances rt) id)]
     (vswap! (:!instances rt) dissoc id)
-    (run! (fn [child]
-            (let [child-id (island/call-id child)]
-              (when (= id (:parent (get @(:!instances rt) child-id)))
-                (unmount-tree! rt child-id))))
-      (:calls inst))
+    (run! #(unmount-tree! rt (first %)) (:children inst))
     (unmount! rt inst)))
 
 
@@ -141,41 +143,31 @@
 
 
 (defn- reconcile
-  "The current frame of `call`, placed by island `parent`. Renders it if it is
-  new, changed or `dirty`, and visits its children if it rendered or is an
-  ancestor of an island that must (`on-path`). Otherwise its last frame stands."
-  [rt call parent dirty on-path !visited]
-  (let [id   (island/call-id call)
-        inst (get @(:!instances rt) id)]
-    (cond
-      (contains? @!visited id)
-      (island/error-frame id "its id appears twice on the page; give it a :key.")
-
-      (and inst (= parent (:parent inst)) (not (changed? inst call)) (not (contains? on-path id)))
+  "The current frame of `call`, the island `id` placed by island `parent`.
+  Renders it if it is new, changed or `dirty`, and visits its children if it
+  rendered or is an ancestor of an island that must (`on-path`). Otherwise its
+  last frame stands."
+  [rt id call parent dirty on-path]
+  (let [inst (get @(:!instances rt) id)]
+    (if (and inst (not (changed? inst call)) (not (contains? on-path id)))
       (:frame inst)
-
-      :else
-      (let [_         (vswap! !visited conj id)
-            old-calls (:calls inst)
-            render?   (or (changed? inst call) (contains? dirty id))
-            inst      (or inst {:id id :!state (atom {})})
-            inst      (-> (if render? (render-island rt inst call) inst)
-                        (assoc :parent parent))
-            slots     (into {}
-                        (map (fn [child] [(island/call-id child) (reconcile rt child id dirty on-path !visited)]))
-                        (:calls inst))
-            old       (:frame inst)
-            frame     (if (and old
-                               (identical? (:template old) (:template inst))
-                               (every? (fn [[k child]] (identical? child (get (:slots old) k))) slots))
-                        old
-                        (island/->Frame id (:template inst) slots))]
-        (run! (fn [child]
-                (let [child-id (island/call-id child)]
-                  (when (and (not (contains? slots child-id))
-                             (= id (:parent (get @(:!instances rt) child-id))))
-                    (unmount-tree! rt child-id))))
-          old-calls)
+      (let [render? (or (changed? inst call) (contains? dirty id))
+            before  (:children inst)
+            inst    (or inst {:id id :parent parent :!state (atom {})})
+            inst    (if render? (render-island rt inst call) inst)
+            slots   (into {}
+                      (map (fn [[child-id child]]
+                             [(island/call-slot child) (reconcile rt child-id child id dirty on-path)]))
+                      (:children inst))
+            old     (:frame inst)
+            frame   (if (and old
+                             (identical? (:template old) (:template inst))
+                             (every? (fn [[k child]] (identical? child (get (:slots old) k))) slots))
+                      old
+                      (island/->Frame id (:template inst) slots))]
+        (when (and render? (seq before))
+          (let [placed (into #{} (map first) (:children inst))]
+            (run! (fn [[child-id]] (when-not (contains? placed child-id) (unmount-tree! rt child-id))) before)))
         (vswap! (:!instances rt) assoc id (assoc inst :frame frame))
         frame))))
 
@@ -218,8 +210,8 @@
   call."
   [rt root changed]
   (let [dirty   (dirty-islands rt changed)
-        frame   (reconcile rt root nil dirty (with-ancestors rt dirty) (volatile! #{}))
-        root-id (island/call-id root)]
+        root-id (island/call-slot root)
+        frame   (reconcile rt root-id root nil dirty (with-ancestors rt dirty))]
     (when-not (contains? #{nil root-id} @(:!root-id rt))
       (unmount-tree! rt @(:!root-id rt)))
     (vreset! (:!root-id rt) root-id)

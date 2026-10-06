@@ -2,6 +2,7 @@
   (:require
     [clojure.test :refer [deftest is testing]]
     [dev.onionpancakes.chassis.core :as h]
+    [example.action :refer [use-action]]
     [example.island :as island :refer [defisland use-state use-watch]]
     [example.runtime :as runtime]
     [example.test-util :refer [harness]]))
@@ -31,7 +32,7 @@
   (reset-data!)
   (let [{:keys [step rt]} (harness parent)
         frame             (step)]
-    (is (= (h/html [:section {:id "parent"} [:h1 "Hello"] [:span {:id "child"} "count " 1] [:p "footer"]])
+    (is (= (h/html [:section {:id "parent"} [:h1 "Hello"] [:span {:id "parent/child"} "count " 1] [:p "footer"]])
            (island/html frame)))
     (is (= (count (island/html frame)) (island/frame-chars frame)))
     (runtime/dispose! rt)))
@@ -44,19 +45,19 @@
     (testing "a child's change neither re-renders nor resends the parent"
       (swap! !data update :count inc)
       (let [f2 (step)]
-        (is (= ["child"] (map :id (island/patches f1 f2))))
-        (is (= {"child" 2 "parent" 1} (runtime/render-counts rt)))))
+        (is (= ["parent/child"] (map :id (island/patches f1 f2))))
+        (is (= {"parent" 1 "parent/child" 2} (runtime/render-counts rt)))))
     (testing "the parent's own change resends the parent, without re-rendering the child"
       (let [f2 (step)]
         (reset! !title "Bye")
         (let [f3 (step)]
           (is (= ["parent"] (map :id (island/patches f2 f3))))
-          (is (= {"child" 2 "parent" 2} (runtime/render-counts rt))))))
+          (is (= {"parent" 2 "parent/child" 2} (runtime/render-counts rt))))))
     (testing "a change the selector maps to an equal value renders nothing"
       (let [f3 (step)]
         (swap! !data update :other inc)
         (is (identical? f3 (step)))
-        (is (= {"child" 2 "parent" 2} (runtime/render-counts rt)))))
+        (is (= {"parent" 2 "parent/child" 2} (runtime/render-counts rt)))))
     (testing "an unknown client state (nil) resyncs the root"
       (is (= ["parent"] (map :id (island/patches nil (step))))))
     (runtime/dispose! rt)
@@ -97,7 +98,7 @@
     (@!setter 5)
     (let [frame (step)]
       (is (re-find #">5<" (island/html frame)))
-      (is (= {"counter" 2 "counter-host" 1} (runtime/render-counts rt)) "only the island re-renders"))
+      (is (= {"counter-host" 1 "counter-host/counter" 2} (runtime/render-counts rt)) "only the island re-renders"))
     (testing "state is dropped when the island unmounts"
       (reset! !show false)
       (step)
@@ -118,12 +119,12 @@
         {:keys [step rt]} (harness rows)]
     (step)
     (swap! !rows conj {:id 2 :text "b"})
-    (is (= "<ul id=\"rows\"><li id=\"row-1\">a</li><li id=\"row-2\">b</li></ul>" (island/html (step))))
-    (is (= {"row-1" 1 "row-2" 1 "rows" 2} (runtime/render-counts rt)))
+    (is (= "<ul id=\"rows\"><li id=\"rows/row.1\">a</li><li id=\"rows/row.2\">b</li></ul>" (island/html (step))))
+    (is (= {"rows" 2 "rows/row.1" 1 "rows/row.2" 1} (runtime/render-counts rt)))
     (testing "a removed row unmounts"
       (swap! !rows subvec 1)
       (step)
-      (is (= #{"rows" "row-2"} (runtime/mounted rt))))
+      (is (= #{"rows" "rows/row.2"} (runtime/mounted rt))))
     (runtime/dispose! rt)))
 
 
@@ -148,7 +149,7 @@
         host              (island/island-fn "host" nil (fn [] [:div (when (use-watch !show) (middle))]))
         {:keys [step rt]} (harness host)]
     (step)
-    (is (= #{"host" "middle" "leaf"} (runtime/mounted rt)))
+    (is (= #{"host" "host/middle" "host/middle/leaf"} (runtime/mounted rt)))
     (reset! !show false)
     (step)
     (is (= #{"host"} (runtime/mounted rt)))
@@ -166,8 +167,56 @@
         f1                (step)]
     (reset! !which :b)
     (is (= ["p"] (map :id (island/patches f1 (step)))))
-    (is (= #{"p" "b"} (runtime/mounted rt)))
+    (is (= #{"p" "p/b"} (runtime/mounted rt)))
     (runtime/dispose! rt)))
+
+
+(def ^:private !left (atom 0))
+(def ^:private !right (atom 0))
+
+
+(defisland left
+  []
+  [:div (str "L" (use-watch !left)) (middle)])
+
+
+(defisland right
+  []
+  [:div (str "R" (use-watch !right)) (middle)])
+
+
+(deftest one-island-in-two-places-is-two-instances
+  (reset-data!)
+  (let [both              (island/island-fn "both" nil (fn [] [:main (left) (right)]))
+        {:keys [step rt]} (harness both)
+        html              (island/html (step))]
+    (is (re-find #"id=\"both/left/middle/leaf\"" html))
+    (is (re-find #"id=\"both/right/middle/leaf\"" html))
+    (testing "each placement renders on its own"
+      (swap! !right inc)
+      (step)
+      (is (= {"both"                   1
+              "both/left"              1
+              "both/left/middle"       1
+              "both/left/middle/leaf"  1
+              "both/right"             2
+              "both/right/middle"      1
+              "both/right/middle/leaf" 1}
+             (runtime/render-counts rt))))
+    (runtime/dispose! rt)))
+
+
+(deftest keys-make-valid-distinct-slots
+  (let [keyed (island/island-fn "k" {:key identity} (fn [_] nil))
+        slot  #(island/call-slot (keyed %))]
+    (is (= "k.17" (slot 17)))
+    (is (= "k.ab-c" (slot :ab-c)))
+    (is (= "k.ns_2Fname" (slot :ns/name)))
+    (is (= "k.a_20b" (slot "a b")))
+    (is (= "k.a_5F20b" (slot "a_20b")) "an escape in a key is itself escaped")
+    (is (= "k.caf_C3_A9" (slot "café")))
+    (is (thrown-with-msg? IllegalArgumentException #"Island name"
+          (island/island-fn "two words" nil (fn [] nil))))))
 
 
 (deftest failures-render-an-error-in-place
@@ -184,7 +233,16 @@
   (testing "two islands with one id"
     (let [twice             (island/island-fn "twice" nil (fn [] [:div (row {:id 1 :text "a"}) (row {:id 1 :text "b"})]))
           {:keys [step rt]} (harness twice)]
-      (is (re-find #"give them a :key" (island/html (step))))
+      (is (re-find #"give them distinct :key values" (island/html (step))))
+      (runtime/dispose! rt)))
+  (testing "a hold asked for twice in one render"
+    (let [twice             (island/island-fn "twice" nil
+                              (fn []
+                                [:div
+                                 [:button {:data-on:click (use-action :go (fn [_] :first))} "1"]
+                                 [:button {:data-on:click (use-action :go (fn [_] :second))} "2"]]))
+          {:keys [step rt]} (harness twice)]
+      (is (re-find #"asks for the hold \[:example.action/action :go\] twice" (island/html (step))))
       (runtime/dispose! rt))))
 
 

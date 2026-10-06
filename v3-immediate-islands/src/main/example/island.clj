@@ -16,9 +16,17 @@
   - `use-hold`    hold something (a subscription, a token) while renders keep asking for it.
   - `use-session` the session's `{:tab :uid}`.
 
-  `example.hooks` (`<-` and `?`) and `example.action/use-action` build on these."
+  `example.hooks` (`<-` and `?`) and `example.action/use-action` build on these.
+
+  Ids are scoped by parent, as React keys are. An island's slot is its name,
+  plus `.key` for a keyed island, and is unique among its siblings. Its element
+  id is the path of slots from the root, `app/vault-card/vault-panel`, so it
+  is unique on the page wherever the island is placed. An island placed by a
+  different parent is a different instance."
   (:require
-    [dev.onionpancakes.chassis.core :as h]))
+    [dev.onionpancakes.chassis.core :as h])
+  (:import
+    (java.nio.charset StandardCharsets)))
 
 
 (declare write-frame!)
@@ -31,21 +39,22 @@
 ;; Calls ------------------------------------------------------------------------
 
 
-(deftype Call [id render args]
+(deftype Call [slot render args]
   h/Node
   (branch? [_] false)
   (children [_] nil)
 
   h/Token
   (append-fragment-to [_ _]
-    (throw (IllegalStateException. (str "Island " id " rendered outside the island runtime."))))
+    (throw (IllegalStateException. (str "Island " slot " rendered outside the island runtime."))))
   (fragment [_]
-    (throw (IllegalStateException. (str "Island " id " rendered outside the island runtime.")))))
+    (throw (IllegalStateException. (str "Island " slot " rendered outside the island runtime.")))))
 
 
-(defn call-id
+(defn call-slot
+  "The island's slot in its parent: its name, plus `.key` if it has a key."
   [^Call call]
-  (.-id call))
+  (.-slot call))
 
 
 (defn call-render
@@ -58,23 +67,64 @@
   (.-args call))
 
 
+(defn- id-char?
+  [c]
+  (or (<= (int \a) c (int \z)) (<= (int \A) c (int \Z)) (<= (int \0) c (int \9)) (= c (int \-))))
+
+
+(defn- key-string
+  "The key `k` as it appears in a slot. Letters, digits and `-` stand as they
+  are. Any other character is written as `_` followed by its UTF-8 bytes in
+  hex, so every key gives a valid id, and distinct keys distinct ids."
+  [k]
+  (let [s (if (keyword? k) (str (symbol k)) (str k))]
+    (if (every? #(id-char? (int %)) s)
+      s
+      (let [sb (StringBuilder.)]
+        (doseq [b (String/.getBytes s StandardCharsets/UTF_8)]
+          (let [c (bit-and b 0xff)]
+            (if (id-char? c)
+              (StringBuilder/.append sb (char c))
+              (StringBuilder/.append sb (format "_%02X" c)))))
+        (str sb)))))
+
+
+(defn child-id
+  "The element id of the island in `slot` under the island `parent-id`; the
+  root's (`parent-id` nil) is its slot."
+  [parent-id slot]
+  (if parent-id
+    (str parent-id "/" slot)
+    slot))
+
+
 (defn island-fn
   "The function `defisland` defines: it returns a `Call` for the island named
-  `island-name` with `render` and the given arguments."
+  `island-name` with `render` and the given arguments. The name is a letter
+  followed by letters, digits, `-` and `_`, so that it can't run into the `.`
+  and `/` of ids."
   [island-name {:keys [key]} render]
-  (fn [& args]
-    (Call. (if key (str island-name "-" (apply key args)) island-name) render (vec args))))
+  (when-not (re-matches #"[A-Za-z][A-Za-z0-9_-]*" island-name)
+    (throw (IllegalArgumentException.
+             (str "Island name " (pr-str island-name) ": use a letter followed by letters, digits, - and _."))))
+  (if key
+    (let [prefix (str island-name ".")]
+      (fn [& args]
+        (Call. (str prefix (key-string (apply key args))) render (vec args))))
+    (fn [& args]
+      (Call. island-name render (vec args)))))
 
 
 (defmacro defisland
   "Defines an island: a function of its arguments returning hiccup, rendered and
   patched on its own.
 
-  The island's element id is its name. It is set on the root element the
-  render returns, so the render must not set an id of its own; a root that
-  isn't an element is wrapped in a `:div`. Ids must be unique on the page. To
-  place several instances, give a `:key` fn of the arguments in an options map,
-  and the id becomes `name-<key>`:
+  The island's element id is the path of slots from the root (see the
+  namespace docstring). It is set on the root element the render returns, so
+  the render must not set an id of its own; a root that isn't an element is
+  wrapped in a `:div`. Siblings need distinct slots: to place several
+  instances under one parent, give a `:key` fn of the arguments in an options
+  map, and the slot becomes `name.<key>`:
 
       (defisland message {:key :n} [msg]
         [:li (:text msg)])"
@@ -119,7 +169,10 @@
   "Holds a value under `k` for as long as the island's renders keep calling
   `(use-hold k ...)`. `acquire` runs when the island first asks for `k` and
   returns `{:value v, :release f}`. `release` runs after the first render that no
-  longer asks for `k`, or when the island unmounts. Returns `v`."
+  longer asks for `k`, or when the island unmounts. Returns `v`.
+
+  A render asks for each `k` at most once: asking twice throws, since two call
+  sites sharing one hold (two buttons sharing one action token) is a bug."
   [k acquire]
   ((:hold! (current "use-hold")) k acquire))
 
@@ -140,7 +193,7 @@
 
 
 ;; Where a child island goes in its parent's template.
-(defrecord Hole [id])
+(defrecord Hole [slot])
 
 
 ;; `parts`: strings and Holes, in document order.
@@ -148,7 +201,7 @@
 (defrecord Template [parts chars])
 
 
-;; `slots`: child island id -> child Frame.
+;; `id`: the island's element id. `slots`: child slot -> child Frame.
 (defrecord Frame [id template slots]
   h/Node
   (branch? [_] false)
@@ -168,17 +221,18 @@
     (let [[tag & more]     node
           [attrs children] (if (map? (first more)) [(first more) (rest more)] [{} more])]
       (when (or (contains? attrs :id) (re-find #"#" (name tag)))
-        (throw (IllegalArgumentException.
-                 (str "Island " id ": the root element gets the island's id; don't set one."))))
+        (throw (IllegalArgumentException. "its root element gets the island's id; don't set one.")))
       (into [tag (assoc attrs :id id)] children))
     [:div {:id id} node]))
 
 
 (defn- flush-part
   [parts ^StringBuilder sb]
-  (let [s (StringBuilder/.toString sb)]
-    (StringBuilder/.setLength sb 0)
-    (cond-> parts (pos? (count s)) (conj s))))
+  (if (pos? (StringBuilder/.length sb))
+    (let [s (StringBuilder/.toString sb)]
+      (StringBuilder/.setLength sb 0)
+      (conj parts s))
+    parts))
 
 
 (defn compile-island
@@ -186,21 +240,23 @@
   id on its root. Returns `[template calls]`: the template's parts are strings
   and holes for child islands, and `calls` are the child islands in document
   order.
-  Throws if two children share an id."
+  Throws if two children share a slot, or the root sets its own id. The
+  messages complete \"Island <id> failed to render: \"."
   [id node]
   (let [sb            (StringBuilder.)
+        ;; The accumulator changes only at a child island; text tokens return it as is.
         [parts calls] (h/reduce-node
-                        (fn [[parts calls] token]
+                        (fn [acc token]
                           (if (instance? Call token)
-                            [(conj (flush-part parts sb) (->Hole (call-id token))) (conj calls token)]
+                            (let [[parts calls] acc]
+                              [(conj (flush-part parts sb) (->Hole (call-slot token))) (conj calls token)])
                             (do (h/append-fragment-to token sb)
-                                [parts calls])))
+                                acc)))
                         [[] []]
                         (with-id id node))
         parts         (flush-part parts sb)]
-    (when-not (apply distinct? nil (map call-id calls))
-      (throw (IllegalArgumentException.
-               (str "Island " id " places two islands with the same id; give them a :key."))))
+    (when-not (apply distinct? nil (map call-slot calls))
+      (throw (IllegalArgumentException. "it places two islands in one slot; give them distinct :key values.")))
     [(->Template parts (transduce (comp (filter string?) (map count)) + parts))
      calls]))
 
@@ -211,12 +267,6 @@
    [:strong "Island " id " failed to render: "] message])
 
 
-(defn error-frame
-  "A childless frame for `id` showing `message`."
-  [id message]
-  (->Frame id (first (compile-island id (error-view id message))) {}))
-
-
 (defn write-frame!
   "Appends the HTML of `frame` to `sb`: its template's string parts, with each hole
   filled by the corresponding child frame. Returns `sb`."
@@ -225,7 +275,7 @@
     (run! (fn [part]
             (if (string? part)
               (StringBuilder/.append sb ^String part)
-              (write-frame! sb (get slots (:id part)))))
+              (write-frame! sb (get slots (:slot part)))))
       (:parts (:template frame)))
     sb))
 
@@ -240,7 +290,7 @@
   "The frames to send to bring a client showing `sent` up to `frame`: the topmost
   islands whose own template changed. An island with an identical template
   recurses into its children. Its children are then the same islands, since
-  their ids are part of the template."
+  their slots are part of the template."
   [sent frame]
   (cond
     (identical? sent frame)

@@ -12,6 +12,9 @@
   a render that stops, or the island unmounting, releases it. Nobody calls
   `release!` by hand.
 
+  A resource whose task fails is closed: its value becomes `Failed`, so its
+  readers throw, and the next subscriber to its key opens a new one.
+
   `simulated-pstate` stands in for a Rama PState: it opens a resource per path."
   (:require
     [co.multiply.quiescent :as q])
@@ -27,81 +30,125 @@
 (def pending ::pending)
 
 
+;; The value of a resource, or of a one-off task, that failed: readers throw `error`.
+(defrecord Failed [error])
+
+
+(defn failed?
+  [v]
+  (instance? Failed v))
+
+
 (defonce ^:private lock (Object.))
 
 
-;; key -> {:subscribers n, :live? bool, :!value atom, :task Task, :linger Task, :token Object}
+;; key -> {:subscribers n, :live? bool, :!value atom, :task Task, :linger Task}
 ;; Changes only on lifecycle events, never on publish: values live in `:!value`.
+;; `:!value` also identifies the entry: a key that closes and opens again gets a new one.
 (defonce !entries (atom {}))
 
 
 (defonce !totals (atom {:opened 0 :closed 0}))
 
 
+(defn- current?
+  "Whether `!value` belongs to the entry for `key` now. Caller holds `lock`."
+  [key !value]
+  (identical? !value (get-in @!entries [key :!value])))
+
+
 (defn- mark-live!
-  [key token]
+  [key !value]
   (locking lock
-    (when (identical? token (get-in @!entries [key :token]))
+    (when (current? key !value)
       (swap! !entries assoc-in [key :live?] true))))
 
 
+(defn- fail!
+  "Closes the entry whose task failed with `e`. Its readers get `Failed`, and
+  the next subscriber to `key` opens a new resource."
+  [key !value e]
+  (locking lock
+    (when (current? key !value)
+      (println "resource: failed" key (ex-message e))
+      (some-> (get-in @!entries [key :linger]) q/cancel)
+      (swap! !entries dissoc key)
+      (swap! !totals update :closed inc)))
+  (reset! !value (->Failed e)))
+
+
 (defn- open!
-  "Starts the physical resource for `key`. Caller holds `lock`."
+  "Starts the physical resource for `key` and returns its entry, not yet
+  registered. Caller holds `lock`."
   [key open-fn]
-  (let [token    (Object.)
-        !value   (atom pending)
+  (let [!value   (atom pending)
         live?    (volatile! false)
         publish! (fn [v]
                    (reset! !value v)
                    (when-not @live?
                      (vreset! live? true)
-                     (mark-live! key token)))]
+                     (mark-live! key !value)))
+        ;; Compelled: the resource belongs to the registry, not to whichever
+        ;; session happened to subscribe first.
+        task     (q/compel (open-fn publish!))]
     (println "resource: open" key)
     (swap! !totals update :opened inc)
-    ;; Compelled: the resource belongs to the registry, not to whichever session
-    ;; happened to subscribe first.
     {:subscribers 0
-     :live?       false
+     ;; `open-fn` may have published already, before the entry could be marked.
+     :live?       (not= pending @!value)
      :!value      !value
-     :token       token
-     :task        (q/compel (open-fn publish!))}))
+     :task        task}))
+
+
+(defn- watch-failure!
+  "Closes the registered entry for `key` if its task fails. Compelled, like the
+  task. Attached after registration, so a task that has already failed finds
+  its entry."
+  [key {:keys [task !value]}]
+  (q/compel (q/err task #(fail! key !value %))))
 
 
 (defn- close-if-idle!
-  [key token]
+  [key !value]
   (locking lock
-    (let [{:keys [subscribers task] :as entry} (get @!entries key)]
-      (when (and (identical? token (:token entry)) (zero? subscribers))
-        (println "resource: close" key)
-        (q/cancel task)
-        (swap! !entries dissoc key)
-        (swap! !totals update :closed inc)))))
+    (when (and (current? key !value) (zero? (get-in @!entries [key :subscribers])))
+      (println "resource: close" key)
+      (q/cancel (get-in @!entries [key :task]))
+      (swap! !entries dissoc key)
+      (swap! !totals update :closed inc))))
 
 
 (defn acquire!
   "Registers a subscriber to `key`, opening the resource with `open-fn` if
   nobody holds it. `open-fn` receives a `publish!` fn and returns a Quiescent
   task; cancelling the task closes the resource. Returns the resource's value
-  atom, which holds `pending` until the first publish."
+  atom, which holds `pending` until the first publish; pass it to `release!`."
   [key open-fn]
   (locking lock
-    (let [entry (or (get @!entries key) (open! key open-fn))]
+    (let [entry (get @!entries key)
+          fresh (when-not entry (open! key open-fn))
+          entry (or entry fresh)]
       (some-> (:linger entry) q/cancel)
       (swap! !entries assoc key (-> entry (update :subscribers inc) (dissoc :linger)))
+      (when fresh
+        (watch-failure! key fresh))
       (:!value entry))))
 
 
 (defn release!
-  "Unregisters a subscriber to `key`. The last one out starts the linger."
-  [key]
+  "Unregisters a subscriber to `key`, given the value atom `acquire!` returned.
+  The last one out starts the linger. Releasing a resource that has since failed
+  does nothing: it is already closed."
+  [key !value]
   (locking lock
-    (let [{:keys [subscribers token] :as entry} (update (get @!entries key) :subscribers dec)]
-      (swap! !entries assoc key
-        (cond-> entry
-          (zero? subscribers)
-          (assoc :linger (q/compel
-                           (-> (q/sleep linger-ms)
-                             (q/then (fn [_] (close-if-idle! key token)))))))))))
+    (when (current? key !value)
+      (let [{:keys [subscribers] :as entry} (update (get @!entries key) :subscribers dec)]
+        (swap! !entries assoc key
+          (cond-> entry
+            (zero? subscribers)
+            (assoc :linger (q/compel
+                             (-> (q/sleep linger-ms)
+                               (q/then (fn [_] (close-if-idle! key !value))))))))))))
 
 
 (def ^:private clock (DateTimeFormatter/ofPattern "HH:mm:ss.SSS"))

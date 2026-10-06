@@ -1,0 +1,382 @@
+54684
+2026-10-06T19:55:13.905301Z
+27+33-FR
+
+#13 "Reference Handler" RUNNABLE 2026-10-06T19:55:13.906177Z
+    at java.base/java.lang.ref.Reference.waitForReferencePendingList(Native Method)
+    at java.base/java.lang.ref.Reference.processPendingReferences(Reference.java:240)
+    at java.base/java.lang.ref.Reference$ReferenceHandler.run(Reference.java:202)
+
+#14 "Finalizer" WAITING 2026-10-06T19:55:13.906969Z
+    at java.base/java.lang.Object.wait0(Native Method)
+    - waiting on <java.lang.Object@42dc99ec>
+    at java.base/java.lang.Object.wait(Object.java:391)
+    at java.base/java.lang.Object.wait(Object.java:353)
+    at java.base/java.lang.ref.ReferenceQueue.remove0(ReferenceQueue.java:136)
+    at java.base/java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:214)
+    - locked <java.lang.Object@42dc99ec>
+    at java.base/java.lang.ref.Finalizer$FinalizerThread.run(Finalizer.java:165)
+
+#15 "Signal Dispatcher" RUNNABLE 2026-10-06T19:55:13.907025Z
+
+#22 "Notification Thread" RUNNABLE 2026-10-06T19:55:13.907033Z
+
+#23 "Common-Cleaner" TIMED_WAITING 2026-10-06T19:55:13.907052Z
+    at java.base/java.lang.Object.wait0(Native Method)
+    - waiting on <java.lang.Object@2efa250b>
+    at java.base/java.lang.Object.wait(Object.java:391)
+    at java.base/java.lang.ref.ReferenceQueue.remove0(ReferenceQueue.java:122)
+    at java.base/java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:200)
+    - locked <java.lang.Object@2efa250b>
+    at java.base/jdk.internal.ref.CleanerImpl.run(CleanerImpl.java:146)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+    at java.base/jdk.internal.misc.InnocuousThread.run(InnocuousThread.java:148)
+
+#35 "idle-timeout-task" TIMED_WAITING 2026-10-06T19:55:13.907086Z
+    at java.base/java.lang.Object.wait0(Native Method)
+    - waiting on <java.util.TaskQueue@3f350369>
+    at java.base/java.lang.Object.wait(Object.java:391)
+    at java.base/java.util.TimerThread.mainLoop(Timer.java:569)
+    - locked <java.util.TaskQueue@3f350369>
+    at java.base/java.util.TimerThread.run(Timer.java:522)
+
+#36 "HTTP-Dispatcher" RUNNABLE 2026-10-06T19:55:13.907130Z
+    at java.base/sun.nio.ch.KQueue.poll(Native Method)
+    at java.base/sun.nio.ch.KQueueSelectorImpl.doSelect(KQueueSelectorImpl.java:121)
+    at java.base/sun.nio.ch.SelectorImpl.lockAndDoSelect(SelectorImpl.java:130)
+    - locked <sun.nio.ch.Util$2@7906d535>
+    - locked <sun.nio.ch.KQueueSelectorImpl@9f19c8a>
+    at java.base/sun.nio.ch.SelectorImpl.select(SelectorImpl.java:142)
+    at jdk.httpserver/sun.net.httpserver.ServerImpl$Dispatcher.run(ServerImpl.java:519)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#37 "qtp804126705-37" TIMED_WAITING 2026-10-06T19:55:13.907174Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@7cf304a9>
+    at java.base/java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:271)
+    at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:1804)
+    at org.eclipse.jetty.util.BlockingArrayQueue.poll(BlockingArrayQueue.java:219)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.idleJobPoll(QueuedThreadPool.java:1124)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1141)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#38 "qtp804126705-38" TIMED_WAITING 2026-10-06T19:55:13.907207Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@7cf304a9>
+    at java.base/java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:271)
+    at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:1804)
+    at org.eclipse.jetty.util.BlockingArrayQueue.poll(BlockingArrayQueue.java:219)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.idleJobPoll(QueuedThreadPool.java:1124)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1141)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#39 "qtp804126705-39" TIMED_WAITING 2026-10-06T19:55:13.907240Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@7cf304a9>
+    at java.base/java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:271)
+    at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:1804)
+    at org.eclipse.jetty.util.BlockingArrayQueue.poll(BlockingArrayQueue.java:219)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.idleJobPoll(QueuedThreadPool.java:1124)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1141)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#40 "qtp804126705-40" RUNNABLE 2026-10-06T19:55:13.907281Z
+    at java.base/sun.nio.ch.KQueue.poll(Native Method)
+    at java.base/sun.nio.ch.KQueueSelectorImpl.doSelect(KQueueSelectorImpl.java:121)
+    at java.base/sun.nio.ch.SelectorImpl.lockAndDoSelect(SelectorImpl.java:130)
+    - locked <sun.nio.ch.Util$2@1993fc93>
+    - locked <sun.nio.ch.KQueueSelectorImpl@56732de9>
+    at java.base/sun.nio.ch.SelectorImpl.select(SelectorImpl.java:147)
+    at org.eclipse.jetty.io.ManagedSelector.nioSelect(ManagedSelector.java:181)
+    at org.eclipse.jetty.io.ManagedSelector.select(ManagedSelector.java:188)
+    at org.eclipse.jetty.io.ManagedSelector$SelectorProducer.select(ManagedSelector.java:606)
+    at org.eclipse.jetty.io.ManagedSelector$SelectorProducer.produce(ManagedSelector.java:542)
+    at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.produceTask(AdaptiveExecutionStrategy.java:455)
+    at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.tryProduce(AdaptiveExecutionStrategy.java:248)
+    at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.run(AdaptiveExecutionStrategy.java:199)
+    at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:411)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:969)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.doRunJob(QueuedThreadPool.java:1194)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1149)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#41 "qtp804126705-41" TIMED_WAITING 2026-10-06T19:55:13.907330Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@7cf304a9>
+    at java.base/java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:271)
+    at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:1804)
+    at org.eclipse.jetty.util.BlockingArrayQueue.poll(BlockingArrayQueue.java:219)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.idleJobPoll(QueuedThreadPool.java:1124)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1141)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#42 "qtp804126705-42" RUNNABLE 2026-10-06T19:55:13.907368Z
+    at java.base/sun.nio.ch.KQueue.poll(Native Method)
+    at java.base/sun.nio.ch.KQueueSelectorImpl.doSelect(KQueueSelectorImpl.java:121)
+    at java.base/sun.nio.ch.SelectorImpl.lockAndDoSelect(SelectorImpl.java:130)
+    - locked <sun.nio.ch.Util$2@53e3fe61>
+    - locked <sun.nio.ch.KQueueSelectorImpl@37d17ef8>
+    at java.base/sun.nio.ch.SelectorImpl.select(SelectorImpl.java:147)
+    at org.eclipse.jetty.io.ManagedSelector.nioSelect(ManagedSelector.java:181)
+    at org.eclipse.jetty.io.ManagedSelector.select(ManagedSelector.java:188)
+    at org.eclipse.jetty.io.ManagedSelector$SelectorProducer.select(ManagedSelector.java:606)
+    at org.eclipse.jetty.io.ManagedSelector$SelectorProducer.produce(ManagedSelector.java:542)
+    at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.produceTask(AdaptiveExecutionStrategy.java:455)
+    at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.tryProduce(AdaptiveExecutionStrategy.java:248)
+    at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.run(AdaptiveExecutionStrategy.java:199)
+    at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:411)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:969)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.doRunJob(QueuedThreadPool.java:1194)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1149)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#43 "qtp804126705-43-acceptor-0@66be165b-ServerConnector@76614fd1{HTTP/1.1, (http/1.1)}{0.0.0.0:8080}" RUNNABLE 2026-10-06T19:55:13.907461Z
+    at java.base/sun.nio.ch.Net.accept(Native Method)
+    at java.base/sun.nio.ch.ServerSocketChannelImpl.implAccept(ServerSocketChannelImpl.java:422)
+    at java.base/sun.nio.ch.ServerSocketChannelImpl.accept(ServerSocketChannelImpl.java:389)
+    at org.eclipse.jetty.server.ServerConnector.accept(ServerConnector.java:409)
+    at org.eclipse.jetty.server.AbstractConnector$Acceptor.run(AbstractConnector.java:748)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:969)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.doRunJob(QueuedThreadPool.java:1194)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1149)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#44 "qtp804126705-44" RUNNABLE 2026-10-06T19:55:13.907517Z
+    at java.base/sun.nio.ch.KQueue.poll(Native Method)
+    at java.base/sun.nio.ch.KQueueSelectorImpl.doSelect(KQueueSelectorImpl.java:121)
+    at java.base/sun.nio.ch.SelectorImpl.lockAndDoSelect(SelectorImpl.java:130)
+    - locked <sun.nio.ch.Util$2@31206bf5>
+    - locked <sun.nio.ch.KQueueSelectorImpl@7ef3045d>
+    at java.base/sun.nio.ch.SelectorImpl.select(SelectorImpl.java:147)
+    at org.eclipse.jetty.io.ManagedSelector.nioSelect(ManagedSelector.java:181)
+    at org.eclipse.jetty.io.ManagedSelector.select(ManagedSelector.java:188)
+    at org.eclipse.jetty.io.ManagedSelector$SelectorProducer.select(ManagedSelector.java:606)
+    at org.eclipse.jetty.io.ManagedSelector$SelectorProducer.produce(ManagedSelector.java:542)
+    at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.produceTask(AdaptiveExecutionStrategy.java:455)
+    at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.tryProduce(AdaptiveExecutionStrategy.java:248)
+    at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.run(AdaptiveExecutionStrategy.java:199)
+    at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:411)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:969)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.doRunJob(QueuedThreadPool.java:1194)
+    at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1149)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#47 "DestroyJavaVM" RUNNABLE 2026-10-06T19:55:13.907578Z
+
+#49 "InnocuousThread-1" WAITING 2026-10-06T19:55:13.907595Z
+    at java.base/java.lang.Object.wait0(Native Method)
+    - waiting on <java.lang.Object@b1b38ad>
+    at java.base/java.lang.Object.wait(Object.java:391)
+    at java.base/java.lang.Object.wait(Object.java:353)
+    at java.base/java.lang.ref.ReferenceQueue.remove0(ReferenceQueue.java:136)
+    at java.base/java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:214)
+    - locked <java.lang.Object@b1b38ad>
+    at java.base/java.nio.BufferCleaner$CleaningRunnable.run(BufferCleaner.java:212)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+    at java.base/jdk.internal.misc.InnocuousThread.run(InnocuousThread.java:148)
+
+#50 "VirtualThread-unblocker" RUNNABLE 2026-10-06T19:55:13.907680Z
+    at java.base/java.lang.VirtualThread.takeVirtualThreadListToUnblock(Native Method)
+    at java.base/java.lang.VirtualThread.unblockVirtualThreads(VirtualThread.java:1417)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+    at java.base/jdk.internal.misc.InnocuousThread.run(InnocuousThread.java:148)
+
+#230 "Attach Listener" RUNNABLE 2026-10-06T19:55:13.907729Z
+    at java.base/jdk.internal.vm.ThreadSnapshot.create(Native Method)
+    at java.base/jdk.internal.vm.ThreadSnapshot.of(ThreadSnapshot.java:63)
+    at java.base/jdk.internal.vm.ThreadDumper.dumpThread(ThreadDumper.java:181)
+    at java.base/jdk.internal.vm.ThreadDumper.lambda$dumpThreads$0(ThreadDumper.java:176)
+    at java.base/java.util.stream.ReferencePipeline$2$1.accept(ReferencePipeline.java:197)
+    at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)
+    at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+    at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+    at java.base/java.util.stream.StreamSpliterators$WrappingSpliterator.forEachRemaining(StreamSpliterators.java:315)
+    at java.base/java.util.stream.Streams$ConcatSpliterator.forEachRemaining(Streams.java:734)
+    at java.base/java.util.stream.ReferencePipeline$Head.forEach(ReferencePipeline.java:803)
+    at java.base/jdk.internal.vm.ThreadDumper.dumpThreads(ThreadDumper.java:176)
+    at java.base/jdk.internal.vm.ThreadDumper.dumpThreads(ThreadDumper.java:172)
+    at java.base/jdk.internal.vm.ThreadDumper.dumpThreadsToFile(ThreadDumper.java:133)
+    at java.base/jdk.internal.vm.ThreadDumper.dumpThreads(ThreadDumper.java:73)
+
+#74 "q-se" WAITING 2026-10-06T19:55:13.908445Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@48387e25>
+    at java.base/java.util.concurrent.locks.LockSupport.park(LockSupport.java:369)
+    at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionNode.block(AbstractQueuedSynchronizer.java:520)
+    at java.base/java.util.concurrent.ForkJoinPool.unmanagedBlock(ForkJoinPool.java:4367)
+    at java.base/java.util.concurrent.ForkJoinPool.managedBlock(ForkJoinPool.java:4313)
+    at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(AbstractQueuedSynchronizer.java:1753)
+    at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(ScheduledThreadPoolExecutor.java:1154)
+    at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(ScheduledThreadPoolExecutor.java:883)
+    at java.base/java.util.concurrent.ThreadPoolExecutor.getTask(ThreadPoolExecutor.java:1016)
+    at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1076)
+    at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#48 "Connector-Scheduler-76614fd1-1" TIMED_WAITING 2026-10-06T19:55:13.908533Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@6df42257>
+    at java.base/java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:271)
+    at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:1804)
+    at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(ScheduledThreadPoolExecutor.java:1166)
+    at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(ScheduledThreadPoolExecutor.java:883)
+    at java.base/java.util.concurrent.ThreadPoolExecutor.getTask(ThreadPoolExecutor.java:1016)
+    at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1076)
+    at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+    at java.base/java.lang.Thread.run(Thread.java:1527)
+
+#52 "ForkJoinPool-2-worker-1" TIMED_WAITING 2026-10-06T19:55:13.909080Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.ForkJoinPool@5527790d>
+    at java.base/java.util.concurrent.ForkJoinPool.awaitWork(ForkJoinPool.java:2109)
+    at java.base/java.util.concurrent.ForkJoinPool.deactivate(ForkJoinPool.java:2063)
+    at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:2027)
+    at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:187)
+
+#54 "ForkJoinPool-2-worker-2" WAITING 2026-10-06T19:55:13.909115Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.ForkJoinPool@5527790d>
+    at java.base/java.util.concurrent.ForkJoinPool.awaitWork(ForkJoinPool.java:2109)
+    at java.base/java.util.concurrent.ForkJoinPool.deactivate(ForkJoinPool.java:2063)
+    at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:2027)
+    at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:187)
+
+#55 "ForkJoinPool-2-delayScheduler" TIMED_WAITING 2026-10-06T19:55:13.909138Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    at java.base/java.util.concurrent.DelayScheduler.loop(DelayScheduler.java:253)
+    at java.base/java.util.concurrent.DelayScheduler.run(DelayScheduler.java:221)
+
+#59 "ForkJoinPool-2-worker-3" WAITING 2026-10-06T19:55:13.909154Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.ForkJoinPool@5527790d>
+    at java.base/java.util.concurrent.ForkJoinPool.awaitWork(ForkJoinPool.java:2109)
+    at java.base/java.util.concurrent.ForkJoinPool.deactivate(ForkJoinPool.java:2063)
+    at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:2027)
+    at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:187)
+
+#70 "ForkJoinPool-2-worker-4" WAITING 2026-10-06T19:55:13.909178Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.ForkJoinPool@5527790d>
+    at java.base/java.util.concurrent.ForkJoinPool.awaitWork(ForkJoinPool.java:2109)
+    at java.base/java.util.concurrent.ForkJoinPool.deactivate(ForkJoinPool.java:2063)
+    at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:2027)
+    at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:187)
+
+#102 "ForkJoinPool-2-worker-5" WAITING 2026-10-06T19:55:13.909200Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.ForkJoinPool@5527790d>
+    at java.base/java.util.concurrent.ForkJoinPool.awaitWork(ForkJoinPool.java:2109)
+    at java.base/java.util.concurrent.ForkJoinPool.deactivate(ForkJoinPool.java:2063)
+    at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:2027)
+    at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:187)
+
+#103 "ForkJoinPool-2-worker-6" WAITING 2026-10-06T19:55:13.909219Z
+    at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+    - parking to wait for <java.util.concurrent.ForkJoinPool@5527790d>
+    at java.base/java.util.concurrent.ForkJoinPool.awaitWork(ForkJoinPool.java:2109)
+    at java.base/java.util.concurrent.ForkJoinPool.deactivate(ForkJoinPool.java:2063)
+    at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:2027)
+    at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:187)
+
+#106 "q-io" virtual TIMED_WAITING 2026-10-06T19:55:13.909425Z
+    at java.base/java.lang.VirtualThread.parkNanos(VirtualThread.java:807)
+    - parking to wait for <java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@7956a9>
+    at java.base/java.lang.System$1.parkVirtualThread(System.java:2312)
+    at java.base/java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:269)
+    at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:1804)
+    at java.base/java.util.concurrent.LinkedBlockingQueue.poll(LinkedBlockingQueue.java:460)
+    at example.session$next_events.invokeStatic(session.clj:234)
+    at example.session$next_events.invoke(session.clj:230)
+    at example.session$pump_BANG_.invokeStatic(session.clj:263)
+    at example.session$pump_BANG_.invoke(session.clj:250)
+    at example.session$start_BANG_$scope_call__1436__auto____5827$runner__2287__auto____5829.invoke(session.clj:289)
+    at co.multiply.quiescent.impl.Task$run__2186$scope_call__1436__auto____2187.invoke(impl.cljc:145)
+    at clojure.lang.FnInvokers.invokeO(FnInvokers.java:83)
+    at java.base/jdk.internal.vm.ScopedValueContainer.callWithoutScope(ScopedValueContainer.java:162)
+    at java.base/jdk.internal.vm.ScopedValueContainer.call(ScopedValueContainer.java:147)
+    at java.base/java.lang.ScopedValue$Carrier.call(ScopedValue.java:424)
+    at co.multiply.quiescent.impl.Task$run__2186.invoke(impl.cljc:144)
+    at clojure.lang.AFn.run(AFn.java:22)
+    at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:545)
+    at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:330)
+    at java.base/java.util.concurrent.ThreadPerTaskExecutor$ThreadBoundFuture.run(ThreadPerTaskExecutor.java:323)
+    at java.base/java.lang.VirtualThread.run(VirtualThread.java:470)
+
+#51 "q-io" virtual TIMED_WAITING 2026-10-06T19:55:13.909495Z
+    at java.base/java.lang.VirtualThread.parkNanos(VirtualThread.java:807)
+    - parking to wait for <java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@4c532a6b>
+    at java.base/java.lang.System$1.parkVirtualThread(System.java:2312)
+    at java.base/java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:269)
+    at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:1804)
+    at java.base/java.util.concurrent.LinkedBlockingQueue.poll(LinkedBlockingQueue.java:460)
+    at example.session$next_events.invokeStatic(session.clj:234)
+    at example.session$next_events.invoke(session.clj:230)
+    at example.session$pump_BANG_.invokeStatic(session.clj:263)
+    at example.session$pump_BANG_.invoke(session.clj:250)
+    at example.session$start_BANG_$scope_call__1436__auto____5827$runner__2287__auto____5829.invoke(session.clj:289)
+    at co.multiply.quiescent.impl.Task$run__2186$scope_call__1436__auto____2187.invoke(impl.cljc:145)
+    at clojure.lang.FnInvokers.invokeO(FnInvokers.java:83)
+    at java.base/jdk.internal.vm.ScopedValueContainer.callWithoutScope(ScopedValueContainer.java:162)
+    at java.base/jdk.internal.vm.ScopedValueContainer.call(ScopedValueContainer.java:147)
+    at java.base/java.lang.ScopedValue$Carrier.call(ScopedValue.java:424)
+    at co.multiply.quiescent.impl.Task$run__2186.invoke(impl.cljc:144)
+    at clojure.lang.AFn.run(AFn.java:22)
+    at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:545)
+    at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:330)
+    at java.base/java.util.concurrent.ThreadPerTaskExecutor$ThreadBoundFuture.run(ThreadPerTaskExecutor.java:323)
+    at java.base/java.lang.VirtualThread.run(VirtualThread.java:470)
+
+#53 "q-io" virtual TIMED_WAITING 2026-10-06T19:55:13.909552Z
+    at java.base/java.lang.VirtualThread.parkNanos(VirtualThread.java:807)
+    at java.base/java.lang.VirtualThread.sleepNanos(VirtualThread.java:994)
+    at java.base/java.lang.Thread.sleepNanos(Thread.java:560)
+    at java.base/java.lang.Thread.sleep(Thread.java:593)
+    at example.resource$ticker$fn__5203$runner__2287__auto____5205.invoke(resource.clj:169)
+    at co.multiply.quiescent.impl.Task$run__2186$scope_call__1436__auto____2187.invoke(impl.cljc:145)
+    at clojure.lang.FnInvokers.invokeO(FnInvokers.java:83)
+    at java.base/jdk.internal.vm.ScopedValueContainer.callWithoutScope(ScopedValueContainer.java:162)
+    at java.base/jdk.internal.vm.ScopedValueContainer.call(ScopedValueContainer.java:147)
+    at java.base/java.lang.ScopedValue$Carrier.call(ScopedValue.java:424)
+    at co.multiply.quiescent.impl.Task$run__2186.invoke(impl.cljc:144)
+    at clojure.lang.AFn.run(AFn.java:22)
+    at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:545)
+    at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:330)
+    at java.base/java.util.concurrent.ThreadPerTaskExecutor$ThreadBoundFuture.run(ThreadPerTaskExecutor.java:323)
+    at java.base/java.lang.VirtualThread.run(VirtualThread.java:470)
+
+#57 "q-io" virtual TIMED_WAITING 2026-10-06T19:55:13.909650Z
+    at java.base/java.lang.VirtualThread.parkNanos(VirtualThread.java:807)
+    at java.base/java.lang.VirtualThread.sleepNanos(VirtualThread.java:994)
+    at java.base/java.lang.Thread.sleepNanos(Thread.java:560)
+    at java.base/java.lang.Thread.sleep(Thread.java:593)
+    at example.resource$ticker$fn__5203$runner__2287__auto____5205.invoke(resource.clj:169)
+    at co.multiply.quiescent.impl.Task$run__2186$scope_call__1436__auto____2187.invoke(impl.cljc:145)
+    at clojure.lang.FnInvokers.invokeO(FnInvokers.java:83)
+    at java.base/jdk.internal.vm.ScopedValueContainer.callWithoutScope(ScopedValueContainer.java:162)
+    at java.base/jdk.internal.vm.ScopedValueContainer.call(ScopedValueContainer.java:147)
+    at java.base/java.lang.ScopedValue$Carrier.call(ScopedValue.java:424)
+    at co.multiply.quiescent.impl.Task$run__2186.invoke(impl.cljc:144)
+    at clojure.lang.AFn.run(AFn.java:22)
+    at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:545)
+    at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:330)
+    at java.base/java.util.concurrent.ThreadPerTaskExecutor$ThreadBoundFuture.run(ThreadPerTaskExecutor.java:323)
+    at java.base/java.lang.VirtualThread.run(VirtualThread.java:470)
+
+#121 "q-io" virtual TIMED_WAITING 2026-10-06T19:55:13.909702Z
+    at java.base/java.lang.VirtualThread.parkNanos(VirtualThread.java:807)
+    at java.base/java.lang.VirtualThread.sleepNanos(VirtualThread.java:994)
+    at java.base/java.lang.Thread.sleepNanos(Thread.java:560)
+    at java.base/java.lang.Thread.sleep(Thread.java:593)
+    at example.resource$ticker$fn__5203$runner__2287__auto____5205.invoke(resource.clj:169)
+    at co.multiply.quiescent.impl.Task$run__2186$scope_call__1436__auto____2187.invoke(impl.cljc:145)
+    at clojure.lang.FnInvokers.invokeO(FnInvokers.java:83)
+    at java.base/jdk.internal.vm.ScopedValueContainer.callWithoutScope(ScopedValueContainer.java:162)
+    at java.base/jdk.internal.vm.ScopedValueContainer.call(ScopedValueContainer.java:147)
+    at java.base/java.lang.ScopedValue$Carrier.call(ScopedValue.java:424)
+    at co.multiply.quiescent.impl.Task$run__2186.invoke(impl.cljc:144)
+    at clojure.lang.AFn.run(AFn.java:22)
+    at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:545)
+    at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:330)
+    at java.base/java.util.concurrent.ThreadPerTaskExecutor$ThreadBoundFuture.run(ThreadPerTaskExecutor.java:323)
+    at java.base/java.lang.VirtualThread.run(VirtualThread.java:470)
+

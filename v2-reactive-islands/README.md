@@ -1,5 +1,8 @@
 # v2-reactive-islands: a reactive backend for Datastar
 
+> Superseded by [v3](../v3-immediate-islands), which keeps this design without
+> Missionary. v3's README covers the design in full, so start there.
+
 Datastar as the frontend, with a Missionary DAG on the server doing "half of
 Electric". Each view is split into **islands**. An island re-renders when its own
 inputs change and is patched on its own. Stateful resources (proxies, poll loops)

@@ -266,6 +266,16 @@
     [:div {:class muted} "renders: " [:span {:data-text "$_wire.renders"}]]]])
 
 
+(defn- stream-init
+  "Opens the tab's stream. The stream carries an id for this page load, made in
+  the browser, so the session can tell its own page from a copy with the same
+  tab id, such as a duplicated tab. `retry: 'always'` reconnects a stream the
+  server ended too, not just one that failed: a closed session ends its
+  connection so the client retries into a new one."
+  [tab]
+  (str "@get('/stream?tab=" tab "&load=' + Math.random().toString(36).slice(2), {retry: 'always'})"))
+
+
 (defn shell
   "The page, server-side rendered from the session's first `frame`. Its islands
   are patched over the stream from then on; the shell itself never is."
@@ -281,6 +291,6 @@
        [:script {:type "module" :src d*/CDN-url}]]
       [:body {:class        [:bg-zinc-50 :text-zinc-900 :dark:bg-zinc-950 :dark:text-zinc-100]
               :data-signals wire-signals
-              :data-init    (str "@get('/stream?tab=" tab "')")}
+              :data-init    (stream-init tab)}
        (or frame [:main {:id "app" :class [:p-6]} "Loading…"])
        (wire-footer)]]]))

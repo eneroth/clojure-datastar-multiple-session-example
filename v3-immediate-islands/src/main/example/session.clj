@@ -3,8 +3,9 @@
   connection.
 
   A session is created when the page is served, and the page is rendered from
-  its first frame. The tab's `@get('/stream')` then attaches to it. Datastar
-  drops that stream routinely: a hidden tab closes it, network blips retry it.
+  its first frame. The tab's `@get('/stream')` then attaches to it, and the
+  session belongs to that page load from then on. Datastar drops that stream
+  routinely: a hidden tab closes it, network blips retry it.
   A detached session keeps its islands, and so their resources, for `grace-ms`.
   A reconnect within that window resyncs from the cached frame without
   reopening anything. After the window, every island is unmounted and
@@ -77,6 +78,7 @@
 ;;   :changed     refs reported changed since the last frame
 ;;   :latest      the last rendered Frame
 ;;   :conn        the attached SSE generator, or nil
+;;   :load        the page load the session belongs to: the first to attach
 ;;   :sent        the Frame the client is showing; nil means unknown, so resync
 ;;   :ssr         a promise awaiting the first frame, for server-side rendering
 ;;   :closed?     the session is closed and the pump exits
@@ -98,22 +100,39 @@
   (assoc st :closed? true :conn nil))
 
 
+(defn- turn-away!
+  "Answers an event that reached a closed session: a connection is closed, so
+  its client retries into a new session, and a page render gets nil."
+  [event]
+  (when (vector? event)
+    (case (first event)
+      :attach (sse/close! (second event))
+      :ssr    (deliver (second event) nil)
+      nil)))
+
+
 (defn- handle
   [st event]
   (if (:closed? st)
-    st
+    (do (turn-away! event)
+        st)
     (case (if (vector? event) (first event) event)
       :changed (update st :changed conj (second event))
       :close   (close st)
       :ssr     (assoc st :ssr (second event))
-      :attach  (let [conn (second event)
-                     prev (:conn st)]
-                 (when (and prev (not (identical? prev conn)))
-                   (sse/close! prev))
-                 (set-attached! (:session st) true)
-                 ;; Replacing a live connection: we don't know what the client got.
-                 (cond-> (assoc st :conn conn :detached-at nil)
-                   prev (assoc :sent nil)))
+      :attach  (let [[_ conn load] event
+                     prev          (:conn st)]
+                 (if (and (contains? st :load) (not= load (:load st)))
+                   ;; Another page with this tab id: a copy, such as a duplicated
+                   ;; tab. Reloaded, it gets a tab of its own.
+                   (do (sse/reload! conn)
+                       st)
+                   (do (when (and prev (not (identical? prev conn)))
+                         (sse/close! prev))
+                       (set-attached! (:session st) true)
+                       ;; Replacing a live connection: we don't know what the client got.
+                       (cond-> (assoc st :conn conn :load load :detached-at nil)
+                         prev (assoc :sent nil)))))
       :detach  (if (identical? (second event) (:conn st))
                  (detach st)
                  st))))
@@ -137,6 +156,12 @@
     st))
 
 
+(defn- last-slot
+  "The last slot of the island id `id`: short enough for the footer."
+  [id]
+  (subs id (inc (or (str/last-index-of id "/") -1))))
+
+
 (defn- wire-stats
   [{:keys [rt latest frames chars]} patched patch-chars]
   {:_wire {:frames  frames
@@ -145,7 +170,7 @@
            :page    (island/frame-chars latest)
            :patched (str/join ", " (map :id patched))
            :renders (->> (runtime/render-counts rt)
-                      (map (fn [[id n]] (str id " " n)))
+                      (map (fn [[id n]] (str (last-slot id) " " n)))
                       (str/join " · "))}})
 
 
@@ -216,10 +241,9 @@
   [{:keys [session ssr]}]
   (some-> ssr (deliver nil))
   (deliver (:closed session) true)
-  ;; An attach that raced the close gets its connection closed, here or by
-  ;; `attach!` itself, so the client retries into a new session.
-  (run! #(when (and (vector? %) (= :attach (first %))) (sse/close! (second %)))
-    (next-events (:mailbox session) 0))
+  ;; Events that raced the close are turned away, here or by `attach!` and
+  ;; `render-page!` themselves.
+  (run! turn-away! (next-events (:mailbox session) 0))
   (println "session: closed" (:tab session)))
 
 
@@ -248,13 +272,16 @@
 ;; API ------------------------------------------------------------------------
 
 
-(defn create!
-  "Starts a session for `tab`, owned by `uid`, rendering the root island
+(defn- new-session
+  [tab uid]
+  {:tab tab :uid uid :mailbox (LinkedBlockingQueue.) :closed (promise) :attached? false})
+
+
+(defn- start!
+  "Starts the pump of a registered `session`, rendering the root island
   `(root-fn {:tab tab :uid uid})`."
-  [tab uid root-fn]
-  (let [session {:tab tab :uid uid :mailbox (LinkedBlockingQueue.) :closed (promise) :attached? false}
-        root    (root-fn {:tab tab :uid uid})]
-    (swap! !sessions assoc tab session)
+  [{:keys [tab uid] :as session} root-fn]
+  (let [root (root-fn {:tab tab :uid uid})]
     (println "session: created" tab)
     (q/compel
       (q/task
@@ -266,30 +293,48 @@
     session))
 
 
+(defn create!
+  "Starts a session for the new `tab`, owned by `uid`, rendering the root island
+  `(root-fn {:tab tab :uid uid})`."
+  [tab uid root-fn]
+  (let [session (new-session tab uid)]
+    (swap! !sessions assoc tab session)
+    (start! session root-fn)))
+
+
 (defn obtain!
   "The session for `tab` if `uid` owns it. A fresh one if `tab` is unknown: it
   expired, or the server restarted, and the client resyncs from its first frame.
-  Nil if another user owns it."
+  Concurrent calls for one unknown `tab` get one session. Nil if another user
+  owns it."
   [tab uid root-fn]
-  (let [session (get @!sessions tab)]
-    (cond
-      (nil? session)          (create! tab uid root-fn)
-      (= uid (:uid session))  session
-      :else                   nil)))
+  (let [fresh   (new-session tab uid)
+        [_ now] (swap-vals! !sessions #(if (contains? % tab) % (assoc % tab fresh)))
+        session (get now tab)]
+    (when (identical? session fresh)
+      (start! session root-fn))
+    (when (= uid (:uid session))
+      session)))
 
 
 (defn render-page!
   "The session's first frame, for rendering the page server-side. The session
-  records that the client shows it, so attaching sends only what changed since."
+  records that the client shows it, so attaching sends only what changed since.
+  Nil if the session closed, or took longer than 5 s."
   [session]
   (let [p (promise)]
     (post! session [:ssr p])
+    (when (realized? (:closed session))
+      (deliver p nil))
     (deref p 5000 nil)))
 
 
 (defn attach!
-  [session sse]
-  (post! session [:attach sse])
+  "Attaches the connection `sse` from the page load `load`. The first load to
+  attach owns the session. Another is a copy of the page, with the same tab id,
+  and is told to reload."
+  [session sse load]
+  (post! session [:attach sse load])
   (when (realized? (:closed session))
     (sse/close! sse)))
 

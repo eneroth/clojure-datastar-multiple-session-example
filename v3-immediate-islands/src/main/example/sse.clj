@@ -21,3 +21,10 @@
 (defn close!
   [sse]
   (d*/close-sse! sse))
+
+
+(defn reload!
+  "Reloads the page on the other end of `sse`, then closes it."
+  [sse]
+  (d*/execute-script! sse "location.reload()")
+  (close! sse))

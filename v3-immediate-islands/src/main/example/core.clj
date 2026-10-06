@@ -3,6 +3,7 @@
 
   - `GET /`             creates a tab session and server-side renders its first frame.
   - `GET /stream?tab=`  attaches the tab's SSE connection to its session (CQRS: queries).
+                        `&load=` names the page load, so a copy of the page is told apart.
   - `POST /act/:token`  invokes a mounted action (CQRS: commands). The response is
                         204, or JSON signals; view updates arrive over the stream."
   (:require
@@ -41,6 +42,9 @@
     (respond
       (-> (resp/response (page/shell tab frame))
         (resp/content-type "text/html; charset=utf-8")
+        ;; The page carries its tab id. Kept out of the HTTP cache, a duplicated
+        ;; or restored tab fetches its own instead of sharing this one.
+        (resp/header "Cache-Control" "no-store")
         (resp/set-cookie uid-cookie uid {:path "/" :http-only true :same-site :lax})))))
 
 
@@ -48,12 +52,13 @@
   [req respond _raise]
   (let [uid     (request-uid req)
         tab     (get-in req [:query-params "tab"])
+        load    (get-in req [:query-params "load"])
         session (when (and uid (parse-uuid (str tab)))
                   (state/ensure-user! uid)
                   (session/obtain! tab uid page/root))]
     (respond
       (if session
-        (->sse-response req {on-open  #(session/attach! session %)
+        (->sse-response req {on-open  #(session/attach! session % load)
                              on-close #(session/detach! session %)})
         {:status 403 :body "Not your tab."}))))
 

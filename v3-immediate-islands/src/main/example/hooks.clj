@@ -8,7 +8,10 @@
     arguments change.
 
   Both return `pending` until their first value arrives. Where the Electric
-  versions throw `Pending`, these return it as a value."
+  versions throw `Pending`, these return it as a value. Both throw in the render
+  when what they read fails: the island renders an error box unless it catches
+  it. Each is a hold, so an island reads a given path, or runs a given `f` and
+  `args`, once per render: bind the value and use it where it is needed."
   (:require
     [co.multiply.quiescent :as q]
     [example.island :as island]
@@ -26,6 +29,10 @@
   Given another `pstate` or `path`, the island holds the new proxy and releases
   the old one, which lingers before it closes.
 
+  If the proxy fails, `<-` throws its exception. The island keeps the failure
+  until it unmounts or reads another path; the next island to read the path
+  opens a new proxy.
+
   Options: `:init`, returned instead of `pending` until the first value."
   ([pstate path]
    (<- pstate path nil))
@@ -34,13 +41,13 @@
          v   (island/use-watch
                (island/use-hold [::proxy key]
                  (fn []
-                   {:value   (resource/acquire! key #((:open pstate) path %))
-                    :release #(resource/release! key)})))]
-     (if (= pending v) init v))))
-
-
-;; A failed `?` task, kept until the island renders and rethrows it.
-(defrecord Failed [error])
+                   (let [!value (resource/acquire! key #((:open pstate) path %))]
+                     {:value   !value
+                      :release #(resource/release! key !value)}))))]
+     (cond
+       (= pending v)        init
+       (resource/failed? v) (throw (:error v))
+       :else                v))))
 
 
 (defn ?
@@ -60,9 +67,9 @@
                    (fn []
                      (let [!result (atom pending)
                            task    (q/compel (q/as-task (apply f args)))]
-                       (q/done task (fn [v e] (reset! !result (if e (->Failed e) v))))
+                       (q/done task (fn [v e] (reset! !result (if e (resource/->Failed e) v))))
                        {:value   !result
                         :release #(q/cancel task)}))))]
-    (if (instance? Failed result)
+    (if (resource/failed? result)
       (throw (:error result))
       result)))
