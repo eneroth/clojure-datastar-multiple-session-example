@@ -2,21 +2,25 @@
   (:require
     [co.multiply.quiescent :as q]
     [example.resource :as resource]
-    [example.runtime :as runtime]))
+    [example.runtime :as runtime])
+  (:import
+    (example.signal Inbox)
+    (java.util ArrayList)))
 
 
 (defn harness
   "A runtime for `root-fn` (a fn of no arguments returning the root `Call`),
   driven the way a session pump drives it. Returns `{:step f, :rt rt}`: `step`
-  renders a frame from the changes reported since the previous one."
+  renders a frame from the changes marked since the previous one."
   ([root-fn]
    (harness root-fn {:tab "tab" :uid "user"}))
   ([root-fn ctx]
-   (let [!changed (atom #{})
-         rt       (runtime/runtime ctx #(swap! !changed conj %))]
+   (let [inbox (Inbox.)
+         rt    (runtime/runtime ctx inbox)]
      {:rt   rt
       :step (fn []
-              (let [[changed] (reset-vals! !changed #{})]
+              (let [changed (ArrayList.)]
+                (Inbox/.drain inbox changed)
                 (runtime/frame! rt (root-fn) changed)))})))
 
 

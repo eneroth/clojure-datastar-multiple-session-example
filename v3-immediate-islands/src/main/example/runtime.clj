@@ -5,14 +5,18 @@
   An island renders when it is new, when its arguments changed, or when a value
   it read changed. Its children are then reconciled against what it placed:
   children with unchanged arguments keep their last output, and children it no
-  longer places are unmounted, releasing what they held and removing their
-  watches. A frame visits only the islands that need rendering and their
+  longer places are unmounted, releasing what they held and unsubscribing from
+  what they read. A frame visits only the islands that need rendering and their
   ancestors; every other subtree is reused as it is.
 
-  Single-threaded: only the session's pump calls in. Watches installed on refs
-  report changes through `on-change`, from whatever thread changed the ref."
+  Single-threaded: only the session's pump calls in. The session subscribes
+  once to each source its islands read (`example.signal`). A change marks the
+  subscription in the session's inbox, from whatever thread made it, and the
+  pump passes the marked subscriptions to `frame!`."
   (:require
-    [example.island :as island]))
+    [example.island :as island])
+  (:import
+    (example.signal Inbox Sub)))
 
 
 ;; Instance: what the runtime keeps per mounted island, keyed by its id.
@@ -21,22 +25,21 @@
 ;;   :template  the last template; :frame the last frame
 ;;   :children  [[child-id call] ...], the child islands it placed, in document order
 ;;   :holds     hold key -> {:value v, :release f}
-;;   :reads     [{:ref r, :select f, :seen v}], from the last render
+;;   :reads     [{:sub s, :select f, :seen v}], from the last render
 ;;   :!state    the atom behind `use-state`
 ;;   :renders   how many times it rendered
 
 
 (defn runtime
-  "A runtime for the session `ctx` (`{:tab :uid}`). `on-change` is called with a
-  ref when a watched ref changes, from the thread that changed it."
-  [ctx on-change]
+  "A runtime for the session `ctx` (`{:tab :uid}`), subscribing through `inbox`."
+  [ctx inbox]
   {:ctx        ctx
-   :on-change  on-change
-   :watch-key  (Object.)
+   :inbox      inbox
    :!instances (volatile! {})
    :!root-id   (volatile! nil)
-   ;; ref -> #{island id}: which islands read it. The session watches each ref once.
-   :!readers   (volatile! {})})
+   ;; source -> Sub, one per source however many islands read it. The Sub's
+   ;; `readers` holds which islands do.
+   :!subs      (volatile! {})})
 
 
 (defn- release-quietly!
@@ -49,29 +52,32 @@
 
 
 (defn- add-reader!
-  "Registers island `id` as a reader of `ref`, watching it first if nobody did."
-  [{:keys [!readers watch-key on-change]} ref id]
-  (let [ids (get @!readers ref)]
-    (when-not (contains? ids id)
-      (when (nil? ids)
-        (add-watch ref watch-key (fn [_ _ old new]
-                                   (when-not (identical? old new)
-                                     (on-change ref)))))
-      (vswap! !readers assoc ref (conj (or ids #{}) id)))))
+  "Registers island `id` as a reader of `source`, subscribing to it first if no
+  island did. Returns the subscription."
+  [{:keys [!subs inbox]} source id]
+  (let [^Sub sub (or (get @!subs source)
+                     (let [sub (Inbox/.subscribe inbox source)]
+                       (vswap! !subs assoc source sub)
+                       sub))]
+    (set! (.-readers sub) (conj (or (.-readers sub) #{}) id))
+    sub))
 
 
 (defn- remove-reader!
-  [{:keys [!readers watch-key]} ref id]
-  (let [ids (disj (get @!readers ref) id)]
+  "Unregisters island `id` as a reader of `sub`, unsubscribing if it was the last."
+  [{:keys [!subs]} ^Sub sub id]
+  (let [ids (disj (.-readers sub) id)]
     (if (empty? ids)
-      (do (remove-watch ref watch-key)
-          (vswap! !readers dissoc ref))
-      (vswap! !readers assoc ref ids))))
+      (do (set! (.-readers sub) nil)
+          (Sub/.cancel sub)
+          (when (identical? sub (get @!subs (.-source sub)))
+            (vswap! !subs dissoc (.-source sub))))
+      (set! (.-readers sub) ids))))
 
 
-(defn- read-refs
+(defn- read-subs
   [reads]
-  (into #{} (map :ref) reads))
+  (into #{} (map :sub) reads))
 
 
 (defn- render-island
@@ -92,11 +98,11 @@
                               (let [held (or (get old-holds k) (acquire))]
                                 (vswap! !holds assoc k held)
                                 (:value held)))
-                   ;; Watch before reading, so no change between the two is missed.
-                   :read!   (fn [ref select]
-                              (add-reader! rt ref id)
-                              (let [v (select @ref)]
-                                (vswap! !reads conj {:ref ref :select select :seen v})
+                   ;; Subscribe before reading, so no change between the two is missed.
+                   :read!   (fn [source select]
+                              (let [sub (add-reader! rt source id)
+                                    v   (select @sub)]
+                                (vswap! !reads conj {:sub sub :select select :seen v})
                                 v))}
         [template calls] (binding [island/*render* hooks]
                            (try
@@ -107,7 +113,7 @@
         holds     @!holds
         reads     @!reads]
     (run! (fn [[k held]] (when-not (contains? holds k) (release-quietly! id held))) old-holds)
-    (run! #(remove-reader! rt % id) (remove (read-refs reads) (read-refs (:reads inst))))
+    (run! #(remove-reader! rt % id) (remove (read-subs reads) (read-subs (:reads inst))))
     (assoc inst
       :render   (island/call-render call)
       :args     (island/call-args call)
@@ -122,7 +128,7 @@
 (defn- unmount!
   [rt {:keys [id holds reads]}]
   (run! #(release-quietly! id (val %)) holds)
-  (run! #(remove-reader! rt % id) (read-refs reads)))
+  (run! #(remove-reader! rt % id) (read-subs reads)))
 
 
 (defn- unmount-tree!
@@ -174,20 +180,21 @@
 
 (defn- stale?
   "Whether a read's selected value differs from what the render saw."
-  [{:keys [ref select seen]}]
+  [{:keys [sub select seen]}]
   (try
-    (not= (select @ref) seen)
+    (not= (select @sub) seen)
     (catch Exception _ true)))
 
 
 (defn- dirty-islands
-  "Ids of islands that read one of the `changed` refs and would now see a different value."
+  "Ids of islands that read one of the `changed` subscriptions and would now see
+  a different value."
   [rt changed]
   (let [instances @(:!instances rt)]
     (into #{}
-      (comp (mapcat (fn [ref] (map #(vector ref %) (get @(:!readers rt) ref))))
-            (filter (fn [[ref id]]
-                      (some #(and (identical? ref (:ref %)) (stale? %)) (:reads (get instances id)))))
+      (comp (mapcat (fn [^Sub sub] (map #(vector sub %) (.-readers sub))))
+            (filter (fn [[sub id]]
+                      (some #(and (identical? sub (:sub %)) (stale? %)) (:reads (get instances id)))))
             (map second))
       changed)))
 
@@ -206,8 +213,7 @@
 
 (defn frame!
   "Brings the island tree under `root` (a `Call`) up to date and returns its
-  frame. `changed` holds the refs reported through `on-change` since the last
-  call."
+  frame. `changed` holds the subscriptions the inbox marked since the last call."
   [rt root changed]
   (let [dirty   (dirty-islands rt changed)
         root-id (island/call-slot root)

@@ -24,14 +24,14 @@ in full, why it is built this way, and how it compares with them.
 
 ## Running
 
-- repl: `clojure -M:repl -m nrepl.cmdline --middleware "[cider.nrepl/cider-middleware]"`,
-  then `(user/reload!)`. The repl also serves
+- dev: `bb dev` compiles the Java sources, starts the server and opens an nREPL
+  session in the terminal. `(user/reload!)` reloads changed Clojure code; a
+  change to the Java needs `bb compile:java` and a restart. The JVM also serves
   [Remontoire](https://github.com/multiplyco/remontoire), an MCP endpoint into
-  the JVM, at <http://127.0.0.1:7888/mcp>. Claude Code started in this
-  directory picks it up from `.mcp.json` as `v3-islands-repl`, after a one-time
-  approval.
-- main: `clojure -M -m example.main`
-- tests: `clojure -M:test`
+  it, at <http://127.0.0.1:7888/mcp>. Claude Code started in this directory
+  picks it up from `.mcp.json` as `v3-islands-repl`, after a one-time approval.
+- main: `bb compile:java`, then `clojure -M -m example.main`
+- tests: `bb test`
 
 Open <http://localhost:8080> in two or three tabs.
 
@@ -156,10 +156,10 @@ Each session has one runtime, used only by the session's pump.
 - **Unmounting.** When an island renders without a child it placed before, that
   child and everything under it unmount. Their holds are released, their watches
   removed and their action tokens revoked. Nothing is released by hand.
-- **Watching.** A session watches each ref once, however many islands read it.
-  A watch callback only posts the ref to the session's mailbox. On the pump, each
-  island that read the ref re-runs its selector, and renders only if the selected
-  value changed.
+- **Reading.** A session subscribes once to each source its islands read, an atom
+  or a signal, however many islands read it. A change only marks the
+  subscription (see "Signals"). On the pump, each island that read the source
+  re-runs its selector, and renders only if the selected value changed.
 - **Holding.** A hold is acquired on first use and released after the first
   render that doesn't use it, or on unmount. A failed render releases what it
   didn't reach before throwing; the registry's linger absorbs that.
@@ -186,10 +186,37 @@ enforced:
   closes the resource.
 - A resource whose task fails is closed. Its value becomes a failure, which `<-`
   throws in its readers, and the next subscriber opens a new one. Each
-  subscription holds the value atom of the resource it subscribed to, so
+  subscription holds the value cell of the resource it subscribed to, so
   releasing a failed resource can't touch its replacement.
 - `simulated-pstate` stands in for a Rama PState: a ticker loop per path, after
   a simulated connection delay.
+
+### Signals (`example.signal`)
+
+How a change reaches the sessions that read it. These are the Java classes in
+`src/main/example/signal/`: a few atomic operations that should allocate
+nothing, on the path every change takes.
+
+- **A signal tells its subscribers that it changed, not what to.** Each session
+  reads the value when it gets to it. A `Cell` holds its value: resources
+  publish into one, and `?` completes into one. A `RefSignal` wraps an atom, so
+  page code keeps using atoms. It is one watch per atom, however many sessions
+  read it, and it goes with the last of them.
+- **A subscription is in its inbox at most once.** A `Sub` is one session's
+  subscription to one signal. A change marks it dirty, and only the change that
+  marks it pushes it into the session's `Inbox`. However fast a value changes, a
+  session that falls behind has one entry per subscription to catch up on, and
+  reads the latest value once. This is the protocol of Missionary's continuous
+  flows (notify once, read on transfer), which v2 got from `m/watch`.
+- **No change is lost.** The inbox is a lock-free stack threaded through the
+  subscriptions themselves, plus a queue for the session's lifecycle events. The
+  first mark after the pump drains it unparks the pump. The pump clears each
+  mark before it reads the value, so a change after the clear marks it again.
+- **Cost.** Marking allocates nothing. With 1,000 sessions reading one value, a
+  change costs about 52 ns per session, where a watch and a queue per session
+  cost about 150 ns and 500 B. Further changes before the pump drains cost about
+  8 ns, against 95 ns and 300 B. That is small next to a frame, but it is paid
+  on the thread that publishes, once per reading session.
 
 ### Sessions (`example.session`)
 
@@ -219,13 +246,14 @@ enforced:
   actions they expose, always follow the current state. A frame is only sent to
   an attached client.
 - **One pump per session.** A Quiescent task on a virtual thread owns all of the
-  session's mutable state, its runtime included, and consumes a mailbox. A
-  watched ref changing only posts to the mailbox. Rendering happens on the pump,
-  never on the thread that changed the ref, so a shared resource's loop never
-  renders on anyone's behalf.
+  session's mutable state, its runtime included, and consumes the session's
+  inbox. A change to something its islands read only marks a subscription there.
+  Rendering happens on the pump, never on the thread that made the change, so a
+  shared resource's loop never renders on anyone's behalf.
 - **Backpressure.** Changes that arrive while a frame is being sent coalesce
   into the next one, `frame-ms` apart, and the latest state wins. A slow client
-  gets fewer, later frames, never a backlog.
+  gets fewer, later frames, never a backlog, and its inbox holds at most one
+  mark per subscription.
 - **Heartbeats.** A dead connection is only noticed on write, so a quiet session
   writes a heartbeat every `heartbeat-ms` (10 s).
 - **Closing.** Events that reach a session after it closed are turned away. A
@@ -326,7 +354,7 @@ replaces the island layer.
 | Session lifetime | the SSE connection                         | the tab, with a grace period                  | the tab, with a grace period         |
 | Authorization    | not covered                                | gated subtrees, capability actions            | `if`, capability actions             |
 | Rendering thread | one scheduler thread for all sessions      | a pump per session                            | a pump per session                   |
-| Island engine    | none                                       | 192 lines + Missionary                        | 548 lines, no dependency             |
+| Island engine    | none                                       | 192 lines + Missionary                        | 555 lines, plus 394 of Java          |
 
 Costs, measured on this demo page. JDK 27, warmed up; v2 and v3 for one ticker
 reading:

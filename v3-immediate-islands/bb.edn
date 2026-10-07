@@ -1,0 +1,15 @@
+{:tasks
+ {compile:java {:doc  "Compile the Java sources in src/main (requires Java 21+)"
+                :task (shell "clj -T:build compile-java")}
+
+  dev          {:doc     "Compile the Java sources, then start the app with nREPL and Remontoire"
+                :depends [compile:java]
+                :task    (shell "clj" "-M:repl"
+                           "-e" "(user/start!)"
+                           "-m" "nrepl.cmdline"
+                           "--middleware" "[cider.nrepl/cider-middleware]"
+                           "--interactive")}
+
+  test         {:doc     "Run the tests"
+                :depends [compile:java]
+                :task    (apply shell "clj" "-M:test" *command-line-args*)}}}

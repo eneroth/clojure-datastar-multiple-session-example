@@ -12,12 +12,15 @@
   everything they held is released.
 
   Each session is run by one pump: a virtual thread that owns all of the
-  session's mutable state, its island runtime included, and consumes a mailbox
-  of events. A watched ref changing only posts to the mailbox. Rendering
-  happens on the pump, never on the thread that changed the ref, so a shared
-  resource's loop never renders on anyone's behalf. Changes that arrive while
-  a frame is being sent coalesce into the next one, so a slow client gets
-  fewer, later frames, never a backlog."
+  session's mutable state, its island runtime included, and consumes the
+  session's inbox (`example.signal.Inbox`). The inbox holds lifecycle events
+  (attach, detach, close) and the subscriptions marked since the pump last
+  looked. A change to something the islands read only marks its subscription,
+  once until the pump takes it. Rendering happens on the pump, never on the
+  thread that made the change, so a shared resource's loop never renders on
+  anyone's behalf. Changes that arrive while a frame is being sent coalesce into
+  the next one, so a slow client gets fewer, later frames, never a backlog, and
+  the inbox never holds more than one mark per subscription."
   (:require
     [clojure.string :as str]
     [co.multiply.quiescent :as q]
@@ -25,8 +28,8 @@
     [example.runtime :as runtime]
     [example.sse :as sse])
   (:import
-    (java.util ArrayList)
-    (java.util.concurrent LinkedBlockingQueue TimeUnit)))
+    (example.signal Inbox)
+    (java.util ArrayList)))
 
 
 (def grace-ms 15000)
@@ -39,7 +42,7 @@
 (def heartbeat-ms 10000)
 
 
-;; tab -> {:tab, :uid, :mailbox, :closed, :attached?}
+;; tab -> {:tab, :uid, :inbox, :closed, :attached?}
 ;; Changes only on lifecycle events (create, attach, detach, close).
 (defonce !sessions (atom {}))
 
@@ -51,21 +54,21 @@
 
 (defn- post!
   [session event]
-  (LinkedBlockingQueue/.put (:mailbox session) event))
+  (Inbox/.post (:inbox session) event))
 
 
 (defn- set-attached!
-  [{:keys [tab mailbox]} attached?]
+  [{:keys [tab inbox]} attached?]
   (swap! !sessions (fn [ss]
-                     (if (identical? mailbox (get-in ss [tab :mailbox]))
+                     (if (identical? inbox (get-in ss [tab :inbox]))
                        (assoc-in ss [tab :attached?] attached?)
                        ss))))
 
 
 (defn- unregister!
-  [{:keys [tab mailbox]}]
+  [{:keys [tab inbox]}]
   (swap! !sessions (fn [ss]
-                     (if (identical? mailbox (get-in ss [tab :mailbox]))
+                     (if (identical? inbox (get-in ss [tab :inbox]))
                        (dissoc ss tab)
                        ss))))
 
@@ -75,7 +78,7 @@
 ;; The pump's state is a map threaded through its loop:
 ;;   :rt          the session's island runtime
 ;;   :root        the root island's Call
-;;   :changed     refs reported changed since the last frame
+;;   :changed     an ArrayList the pump drains the inbox's marked subscriptions into
 ;;   :latest      the last rendered Frame
 ;;   :conn        the attached SSE generator, or nil
 ;;   :load        the page load the session belongs to: the first to attach
@@ -117,7 +120,6 @@
     (do (turn-away! event)
         st)
     (case (if (vector? event) (first event) event)
-      :changed (update st :changed conj (second event))
       :close   (close st)
       :ssr     (assoc st :ssr (second event))
       :attach  (let [[_ conn load] event
@@ -142,9 +144,11 @@
   "Renders a new frame when something an island read has changed. Renders
   whether or not a client is attached, so what the islands hold, and the
   actions they expose, always follow the current state."
-  [{:keys [rt root changed closed?] :as st}]
-  (if (and (seq changed) (not closed?))
-    (assoc st :latest (runtime/frame! rt root changed) :changed #{})
+  [{:keys [rt root ^ArrayList changed closed? session] :as st}]
+  (if (and (not closed?) (pos? (Inbox/.drain (:inbox session) changed)))
+    (let [frame (runtime/frame! rt root changed)]
+      (ArrayList/.clear changed)
+      (assoc st :latest frame))
     st))
 
 
@@ -227,14 +231,15 @@
     (max 1 (- (+ detached-at (long grace-ms)) (now)))))
 
 
-(defn- next-events
-  "Blocks until an event arrives or `ms` elapse, then takes everything queued."
-  [^LinkedBlockingQueue mailbox ms]
-  (let [evs (ArrayList.)]
-    (when-some [ev (LinkedBlockingQueue/.poll mailbox (long ms) TimeUnit/MILLISECONDS)]
-      (ArrayList/.add evs ev)
-      (LinkedBlockingQueue/.drainTo mailbox evs))
-    evs))
+(defn- handle-events
+  "Waits until the inbox has something or `ms` elapse, then handles the queued
+  events. Marked subscriptions stay in the inbox for `render`."
+  [st ^Inbox inbox ms]
+  (Inbox/.await inbox ms)
+  (loop [st st]
+    (if-some [ev (Inbox/.poll inbox)]
+      (recur (handle st ev))
+      st)))
 
 
 (defn- finish!
@@ -243,24 +248,28 @@
   (deliver (:closed session) true)
   ;; Events that raced the close are turned away, here or by `attach!` and
   ;; `render-page!` themselves.
-  (run! turn-away! (next-events (:mailbox session) 0))
+  (loop []
+    (when-some [ev (Inbox/.poll (:inbox session))]
+      (turn-away! ev)
+      (recur)))
   (println "session: closed" (:tab session)))
 
 
 (defn- pump!
-  [session root]
-  (let [rt (runtime/runtime (select-keys session [:tab :uid]) #(post! session [:changed %]))]
+  [{:keys [^Inbox inbox] :as session} root]
+  (Inbox/.bind inbox)
+  (let [rt (runtime/runtime (select-keys session [:tab :uid]) inbox)]
     (try
       (loop [st {:session     session
                  :rt          rt
                  :root        root
-                 :latest      (runtime/frame! rt root #{})
-                 :changed     #{}
+                 :latest      (runtime/frame! rt root [])
+                 :changed     (ArrayList.)
                  :detached-at (now)}]
         (if (:closed? st)
           (finish! st)
           (recur (as-> st st
-                   (reduce handle st (next-events (:mailbox session) (wait-ms st)))
+                   (handle-events st inbox (wait-ms st))
                    (render st)
                    (deliver-ssr st)
                    (sync-client st)
@@ -274,7 +283,7 @@
 
 (defn- new-session
   [tab uid]
-  {:tab tab :uid uid :mailbox (LinkedBlockingQueue.) :closed (promise) :attached? false})
+  {:tab tab :uid uid :inbox (Inbox.) :closed (promise) :attached? false})
 
 
 (defn- start!

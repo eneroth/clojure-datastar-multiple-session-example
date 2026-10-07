@@ -11,7 +11,7 @@
   Hooks run only during a render. Each takes a key, unique within the island,
   instead of relying on call order:
 
-  - `use-watch`   read a ref (atom, etc.); re-render when the selected value changes.
+  - `use-watch`   read a ref (atom, etc.) or a signal; re-render when the selected value changes.
   - `use-state`   island-local state, kept while the island is mounted.
   - `use-hold`    hold something (a subscription, a token) while renders keep asking for it.
   - `use-session` the session's `{:tab :uid}`.
@@ -154,9 +154,10 @@
 
 
 (defn use-watch
-  "The current value of `ref` (anything supporting `add-watch`), through `select`
-  if given. The island renders again when the selected value changes, compared
-  with `=`; a change that `select` maps to an equal value renders nothing.
+  "The current value of `ref` (anything supporting `add-watch`, or an
+  `example.signal.Signal`), through `select` if given. The island renders again
+  when the selected value changes, compared with `=`; a change that `select`
+  maps to an equal value renders nothing.
 
   `select` runs on the session's thread whenever `ref` changes, so keep it cheap."
   ([ref]

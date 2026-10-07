@@ -19,6 +19,7 @@
   (:require
     [co.multiply.quiescent :as q])
   (:import
+    (example.signal Cell)
     (java.time LocalTime)
     (java.time.format DateTimeFormatter)))
 
@@ -42,7 +43,7 @@
 (defonce ^:private lock (Object.))
 
 
-;; key -> {:subscribers n, :live? bool, :!value atom, :task Task, :linger Task}
+;; key -> {:subscribers n, :live? bool, :!value Cell, :task Task, :linger Task}
 ;; Changes only on lifecycle events, never on publish: values live in `:!value`.
 ;; `:!value` also identifies the entry: a key that closes and opens again gets a new one.
 (defonce !entries (atom {}))
@@ -74,17 +75,17 @@
       (some-> (get-in @!entries [key :linger]) q/cancel)
       (swap! !entries dissoc key)
       (swap! !totals update :closed inc)))
-  (reset! !value (->Failed e)))
+  (Cell/.reset !value (->Failed e)))
 
 
 (defn- open!
   "Starts the physical resource for `key` and returns its entry, not yet
   registered. Caller holds `lock`."
   [key open-fn]
-  (let [!value   (atom pending)
+  (let [!value   (Cell. pending)
         live?    (volatile! false)
         publish! (fn [v]
-                   (reset! !value v)
+                   (Cell/.reset !value v)
                    (when-not @live?
                      (vreset! live? true)
                      (mark-live! key !value)))
@@ -121,8 +122,9 @@
 (defn acquire!
   "Registers a subscriber to `key`, opening the resource with `open-fn` if
   nobody holds it. `open-fn` receives a `publish!` fn and returns a Quiescent
-  task; cancelling the task closes the resource. Returns the resource's value
-  atom, which holds `pending` until the first publish; pass it to `release!`."
+  task; cancelling the task closes the resource. Returns the resource's value, a
+  `Cell` (`example.signal`) holding `pending` until the first publish; pass it to
+  `release!`."
   [key open-fn]
   (locking lock
     (let [entry (get @!entries key)
@@ -136,7 +138,7 @@
 
 
 (defn release!
-  "Unregisters a subscriber to `key`, given the value atom `acquire!` returned.
+  "Unregisters a subscriber to `key`, given the value cell `acquire!` returned.
   The last one out starts the linger. Releasing a resource that has since failed
   does nothing: it is already closed."
   [key !value]

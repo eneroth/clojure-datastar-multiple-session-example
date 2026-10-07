@@ -20,9 +20,16 @@
   {:describe "a local dev JVM running v3-immediate-islands, a Datastar proof of concept"})
 
 
+(defn start!
+  "Starts the server. `bb dev` calls this on startup."
+  []
+  (server/reboot-jetty-server! #'c/handler))
+
+
 (defn reload!
   "Closes every session (their resources close after the linger), reloads changed
-  namespaces, and restarts the server. Open tabs reconnect into fresh sessions."
+  namespaces, and restarts the server. Open tabs reconnect into fresh sessions.
+  Java sources need `bb compile:java` and a restart instead."
   []
   (session/close-all!)
   (reload/reload)

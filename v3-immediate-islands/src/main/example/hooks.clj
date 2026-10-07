@@ -15,7 +15,9 @@
   (:require
     [co.multiply.quiescent :as q]
     [example.island :as island]
-    [example.resource :as resource]))
+    [example.resource :as resource])
+  (:import
+    (example.signal Cell)))
 
 
 (def pending
@@ -65,9 +67,9 @@
   (let [result (island/use-watch
                  (island/use-hold [::task f args]
                    (fn []
-                     (let [!result (atom pending)
+                     (let [!result (Cell. pending)
                            task    (q/compel (q/as-task (apply f args)))]
-                       (q/done task (fn [v e] (reset! !result (if e (resource/->Failed e) v))))
+                       (q/done task (fn [v e] (Cell/.reset !result (if e (resource/->Failed e) v))))
                        {:value   !result
                         :release #(q/cancel task)}))))]
     (if (resource/failed? result)
